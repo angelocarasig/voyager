@@ -27,7 +27,6 @@ enum FileOperationError: LocalizedError, Equatable {
 enum FileOperations {
     static let newFolderName = "untitled folder"
 
-    // "name.ext" -> "name copy.ext", "name copy 2.ext", ... until the name is free
     static func copyName(for url: URL, in folder: URL) -> URL {
         let base = url.deletingPathExtension().lastPathComponent
         let ext = url.pathExtension
@@ -39,7 +38,6 @@ enum FileOperations {
         }
     }
 
-    // "untitled folder", "untitled folder 2", ...
     static func newFolderURL(in folder: URL) -> URL {
         freeURL(in: folder, isDirectory: true) { index in
             index == 1 ? newFolderName : "\(newFolderName) \(index)"
@@ -86,9 +84,12 @@ enum FileOperations {
     }
 
     @concurrent
-    static func trash(_ urls: [URL]) async throws {
-        for url in urls {
-            try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+    static func trash(_ urls: [URL]) async throws -> [URL] {
+        try urls.map { url in
+            var landed: NSURL?
+            try FileManager.default.trashItem(at: url, resultingItemURL: &landed)
+
+            return (landed as URL?) ?? url
         }
     }
 
@@ -100,7 +101,6 @@ enum FileOperations {
         return url
     }
 
-    // a clash gets a "copy" name, as finder's "keep both" does
     @concurrent
     static func paste(_ urls: [URL], into folder: URL, move: Bool) async throws -> [URL] {
         let folderPath = folder.standardizedFileURL.path(percentEncoded: false)
@@ -134,7 +134,6 @@ enum FileOperations {
         }
     }
 
-    // one item becomes "name.zip", several become "Archive.zip", as finder names them
     @concurrent
     static func compress(_ urls: [URL]) async throws -> URL {
         guard let first = urls.first else { throw FileOperationError.compressFailed }

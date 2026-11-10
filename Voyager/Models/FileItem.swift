@@ -13,10 +13,14 @@ struct FileItem: Identifiable, Hashable, Sendable {
     let name: String
     let size: Int64?
     let modified: Date?
+    let created: Date?
     let kind: String
     let type: UTType?
     let isDirectory: Bool
     let isPackage: Bool
+    let isHidden: Bool
+    var dateAdded: Date? = nil
+    var tags: [String] = []
 
     var id: URL { url }
 
@@ -26,6 +30,14 @@ struct FileItem: Identifiable, Hashable, Sendable {
 }
 
 extension FileItem {
+    func displayName(showingExtension: Bool) -> String {
+        guard !showingExtension, !opensAsFolder else { return name }
+
+        let stem = (name as NSString).deletingPathExtension
+
+        return stem.isEmpty ? name : stem
+    }
+
     static let defaultOrder = [KeyPathComparator(\FileItem.name, comparator: .localizedStandard)]
 
     static func arrange(_ items: [FileItem], by order: [KeyPathComparator<FileItem>]) -> [FileItem] {

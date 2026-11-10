@@ -13,7 +13,6 @@ struct FileContextMenu: View {
     let items: [FileItem]
     let model: BrowserViewModel
 
-    // empty space acts on the folder being shown
     private var targets: [URL] { items.isEmpty ? [model.current] : items.map(\.url) }
 
     var body: some View {
@@ -89,7 +88,6 @@ struct FileContextMenu: View {
         .keyboardShortcut(action.shortcut)
     }
 
-    // apps are listed for the first item; every selected file opens in the chosen one
     @ViewBuilder
     private var openWithMenu: some View {
         let first = targets.first
@@ -110,6 +108,8 @@ struct FileContextMenu: View {
                     }
                 }
             }
+            // a submenu does not inherit its parent's label style, so app icons need it set here
+            .labelStyle(.titleAndIcon)
 
             if !apps.isEmpty {
                 Divider()

@@ -23,7 +23,7 @@ struct DirectoryLoaderTests {
         try temp.folder("zeta")
 
         // act
-        let items = try await DirectoryLoader.load(temp.url)
+        let items = try await DirectoryLoader.load(temp.url, showingHidden: false)
 
         // assert
         #expect(items.map(\.name) == ["zeta", "a2.txt", "a10.txt", "b.txt"])
@@ -38,7 +38,7 @@ struct DirectoryLoaderTests {
         try temp.file("shown.txt")
 
         // act
-        let items = try await DirectoryLoader.load(temp.url)
+        let items = try await DirectoryLoader.load(temp.url, showingHidden: false)
 
         // assert
         #expect(items.map(\.name) == ["shown.txt"])
@@ -52,7 +52,7 @@ struct DirectoryLoaderTests {
         try temp.file("five.txt", contents: "12345")
 
         // act
-        let item = try #require(try await DirectoryLoader.load(temp.url).first)
+        let item = try #require(try await DirectoryLoader.load(temp.url, showingHidden: false).first)
 
         // assert
         #expect(item.size == 5)
@@ -68,7 +68,7 @@ struct DirectoryLoaderTests {
         try temp.file("Thing.app/Contents/Info.plist")
 
         // act
-        let item = try #require(try await DirectoryLoader.load(temp.url).first)
+        let item = try #require(try await DirectoryLoader.load(temp.url, showingHidden: false).first)
 
         // assert
         #expect(item.isDirectory)
@@ -85,7 +85,7 @@ struct DirectoryLoaderTests {
         let link = try temp.link("link", to: real)
 
         // act
-        let items = try await DirectoryLoader.load(temp.url)
+        let items = try await DirectoryLoader.load(temp.url, showingHidden: false)
         let item = try #require(items.first { $0.name == "link" })
 
         // assert
@@ -102,7 +102,7 @@ struct DirectoryLoaderTests {
         try temp.file("ok.txt")
 
         // act
-        let items = try await DirectoryLoader.load(temp.url)
+        let items = try await DirectoryLoader.load(temp.url, showingHidden: false)
 
         // assert
         #expect(items.map(\.name).sorted() == ["dangling", "ok.txt"])
@@ -115,6 +115,6 @@ struct DirectoryLoaderTests {
         let missing = URL(filePath: "/no/such/folder-\(UUID().uuidString)")
 
         // act, assert
-        await #expect(throws: (any Error).self) { try await DirectoryLoader.load(missing) }
+        await #expect(throws: (any Error).self) { try await DirectoryLoader.load(missing, showingHidden: false) }
     }
 }

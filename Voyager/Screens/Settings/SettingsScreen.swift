@@ -61,7 +61,7 @@ struct SettingsScreen: View {
         .font(store.settings.font())
         .windowBackground(store.settings)
         .preferredColorScheme(.dark)
-        .tint(Color.Mocha.blue)
+        .tint(Color.userAccent)
         .frame(minWidth: 720, minHeight: 460)
     }
 
@@ -174,10 +174,70 @@ struct SettingsScreen: View {
                 Text("\(Int(store.settings.fontSize)) pt")
                     .monospacedDigit()
             }
+        case .accent:
+            accentControl
         case .backgroundBlur:
             slider(\.backgroundBlur, in: AppSettings.blurs, step: 1) { "\(Int($0))" }
         case .backgroundDim:
             slider(\.backgroundDim, in: AppSettings.dims, step: 0.05) { "\(Int(($0 * 100).rounded()))%" }
+        case .viewLayout:
+            picker(\.view.layout, ViewLayout.allCases, title: \.title)
+        case .viewIconSize:
+            slider(\.view.iconSize, in: FolderView.iconSizes, step: 1) { "\(Int($0)) pt" }
+        case .viewCompact:
+            toggle(\.view.compact)
+        case .viewShowHidden:
+            toggle(\.view.showHidden)
+        case .viewShowExtensions:
+            toggle(\.view.showExtensions)
+        case .viewPreviewPane:
+            toggle(\.view.previewPane) { if $0 { store.settings.view.detailsPane = false } }
+        case .viewDetailsPane:
+            toggle(\.view.detailsPane) { if $0 { store.settings.view.previewPane = false } }
+        case .viewCheckBoxes:
+            toggle(\.view.checkBoxes)
+        case .viewSort:
+            picker(\.view.sort, SortField.allCases, title: \.title)
+        case .viewSortAscending:
+            Picker("Sort Order", selection: binding(\.view.ascending)) {
+                Text("Ascending").tag(true)
+                Text("Descending").tag(false)
+            }
+            .labelsHidden()
+        case .viewGroup:
+            picker(\.view.group, GroupField.allCases, title: \.title)
+        }
+    }
+
+    private var accentControl: some View {
+        HStack(spacing: 6) {
+            ForEach(AppSettings.accents, id: \.self) { hex in
+                let isChosen = store.settings.accent == hex
+
+                Button {
+                    binding(\.accent).wrappedValue = hex
+                } label: {
+                    Circle()
+                        .fill(Color(hex: hex))
+                        .frame(width: 18, height: 18)
+                        .padding(2)
+                        .overlay(Circle().strokeBorder(isChosen ? Color.white : Color.clear, lineWidth: 1.5))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(String(format: "#%06X", hex))
+                .accessibilityAddTraits(isChosen ? .isSelected : [])
+            }
+
+            ColorPicker("Custom", selection: Binding {
+                Color(hex: store.settings.accent)
+            } set: { color in
+                guard let rgb = NSColor(color).usingColorSpace(.sRGB) else { return }
+
+                let channel = { (value: CGFloat) in UInt32((min(max(value, 0), 1) * 255).rounded()) }
+                binding(\.accent).wrappedValue = channel(rgb.redComponent) << 16 | channel(rgb.greenComponent) << 8 | channel(rgb.blueComponent)
+            }, supportsOpacity: false)
+            .labelsHidden()
+            .help("Custom colour")
         }
     }
 
@@ -200,6 +260,27 @@ struct SettingsScreen: View {
                 .monospacedDigit()
                 .frame(width: 40, alignment: .trailing)
         }
+    }
+
+    private func picker<Value: Hashable>(_ keyPath: WritableKeyPath<AppSettings, Value>, _ options: [Value], title: @escaping (Value) -> String) -> some View {
+        Picker("", selection: binding(keyPath)) {
+            ForEach(options, id: \.self) { option in
+                Text(title(option)).tag(option)
+            }
+        }
+        .labelsHidden()
+    }
+
+    private func toggle(_ keyPath: WritableKeyPath<AppSettings, Bool>, onChange: @escaping (Bool) -> Void = { _ in }) -> some View {
+        Toggle("", isOn: Binding {
+            store.settings[keyPath: keyPath]
+        } set: {
+            store.settings[keyPath: keyPath] = $0
+            onChange($0)
+            store.save()
+        })
+        .labelsHidden()
+        .toggleStyle(.switch)
     }
 
     private func binding<Value>(_ keyPath: WritableKeyPath<AppSettings, Value>) -> Binding<Value> {

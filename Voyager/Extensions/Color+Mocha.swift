@@ -7,12 +7,13 @@
 
 import SwiftUI
 
-// catppuccin mocha, matching the user's ghostty theme
 extension Color {
     enum Mocha {
         static let base = Color(hex: 0x1E1E1E)
-        static let blue = Color(hex: 0x89B4FA)
     }
+
+    @MainActor
+    static var userAccent: Color { Color(hex: SettingsStore.shared.settings.accent) }
 
     init(hex: UInt32) {
         self.init(

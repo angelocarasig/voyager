@@ -16,7 +16,8 @@ live in the Basic Memory project `voyager`.
 | 7 | Folder loading | Load in the background, show the full listing at once, spinner in the path bar. |
 
 Out of v1: rename, trash, tabs, copy and move, drag and drop, live updates, thumbnails, tags and
-search.
+search. Rename, trash, copy and move, drag and drop, thumbnails and undo have since been added;
+their decisions are in Basic Memory.
 
 ## Window
 
@@ -36,18 +37,20 @@ search.
 
 - `NavigationSplitView` with a sidebar and a content column. On macOS 26 the sidebar adopts
   Liquid Glass automatically (Apple, "Adopting Liquid Glass").
-- Sidebar sections: home folders (Home, Desktop, Documents, Downloads), NAS shares under
-  `/mnt/NAS/<share>`, and mounted volumes. The current folder's entry is highlighted when it is
+- Sidebar sections: home folders (Home, Desktop, Documents, Downloads), NAS shares listed in
+  `settings.json` and connected through NetFS on click, and mounted volumes. The current folder's entry is highlighted when it is
   one of them.
 - Toolbar: back and forward buttons, a breadcrumb path bar, a loading spinner and the
   list/grid toggle.
 
 ## File views
 
-- **List:** SwiftUI `Table` with Name, Size, Modified and Kind columns. Clicking a header sorts.
-- **Grid:** `LazyVGrid` of system file icons (`NSWorkspace.icon(forFile:)`) with names below.
-- The view mode is stored with `@AppStorage` and applies to every folder.
-- Both views share one selection and one sort order.
+- **Details:** SwiftUI `Table` with Name, Date Modified, Size and Kind columns, plus optional
+  columns. Clicking a header sorts.
+- **Icon layouts:** extra large, large, medium and small icons, list, tiles and content, drawn
+  with lazy grids.
+- The layout, sort and grouping come from `settings.json` and can be remembered per folder.
+- Every layout shares one selection, one sort order and a drag-to-select band.
 
 If `Table` struggles with very large folders, replace it with an `NSTableView` wrapper. Very
 large folders are a Finder-grade concern, so v1 does not plan for them.
@@ -63,10 +66,12 @@ large folders are a Finder-grade concern, so v1 does not plan for them.
 | Typing letters | Jump to the first item whose name starts with them |
 | Space | Quick Look the selection |
 | Arrow keys | Move the selection; in the grid, up and down move by row |
-| `⌘1` / `⌘2` | List / grid |
+| `⌘1` to `⌘8` | Choose a layout |
+| F2 | Rename in place |
+| `⌘Z` / `⇧⌘Z` | Undo / redo file changes |
 | `⌘R` | Reload the current folder |
 
-Return opens, so a later rename feature uses F2 or a menu item.
+Return opens, so rename uses F2, as Windows does.
 
 ## Folder loading
 

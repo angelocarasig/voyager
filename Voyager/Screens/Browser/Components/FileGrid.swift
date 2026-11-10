@@ -18,36 +18,69 @@ struct FileGrid: View {
     @State private var anchor: FileItem.ID?
     @State private var dropTarget: FileItem.ID?
 
-    private let cellWidth: CGFloat = 104
-    private let spacing: CGFloat = 12
-    private let padding: CGFloat = 16
     private let space = "grid"
     private let viewportSpace = "viewport"
+    private let checkboxInset: CGFloat = 24
+
+    private var layout: ViewLayout { model.view.layout }
+    private var compact: Bool { SettingsStore.shared.settings.view.compact }
+    private var checkBoxes: Bool { SettingsStore.shared.settings.view.checkBoxes }
+    private var spacing: CGFloat { compact ? 6 : 12 }
+    private var padding: CGFloat { compact ? 8 : 16 }
+
+    private var cellWidth: CGFloat {
+        switch layout {
+        case .smallIcons: 220
+        case .list: 200
+        case .tiles: 260
+        default: model.view.iconSize + 40
+        }
+    }
+
+    private var rowHeight: CGFloat { compact ? 22 : 28 }
 
     private var columns: Int {
-        max(1, Int((viewport.width - padding * 2 + spacing) / (cellWidth + spacing)))
+        layout == .content ? 1 : max(1, Int((viewport.width - padding * 2 + spacing) / (cellWidth + spacing)))
+    }
+
+    private var rows: Int {
+        max(1, Int((viewport.height - padding * 2 + spacing) / (rowHeight + spacing)))
+    }
+
+    private var gridColumns: [GridItem] {
+        if layout == .content {
+            return [GridItem(.flexible(), spacing: 0)]
+        }
+
+        return Array(repeating: GridItem(.fixed(cellWidth), spacing: spacing, alignment: .top), count: columns)
     }
 
     var body: some View {
         ScrollViewReader { proxy in
-            ScrollView {
-                LazyVGrid(
-                    columns: Array(repeating: GridItem(.flexible(), spacing: spacing, alignment: .top), count: columns),
-                    spacing: spacing
-                ) {
-                    ForEach(model.items) { item in
-                        cell(for: item)
+            Group {
+                if layout == .list {
+                    ScrollView(.horizontal) {
+                        scaffold {
+                            LazyHGrid(
+                                rows: Array(repeating: GridItem(.fixed(rowHeight), spacing: spacing), count: rows),
+                                spacing: spacing
+                            ) {
+                                ForEach(model.visibleItems) { item in
+                                    cell(for: item)
+                                }
+                            }
+                        }
                     }
-                }
-                .padding(padding)
-                .frame(maxWidth: .infinity, minHeight: viewport.height, alignment: .top)
-                .background { surface }
-                .overlay(alignment: .topLeading) { selectionBand }
-                .coordinateSpace(.named(space))
-                .onGeometryChange(for: CGPoint.self) { geometry in
-                    geometry.frame(in: .named(viewportSpace)).origin
-                } action: { origin in
-                    tracking.contentOrigin = origin
+                } else {
+                    ScrollView {
+                        scaffold {
+                            LazyVStack(alignment: .leading, spacing: spacing) {
+                                ForEach(model.groups) { group in
+                                    section(group)
+                                }
+                            }
+                        }
+                    }
                 }
             }
             .coordinateSpace(.named(viewportSpace))
@@ -55,6 +88,9 @@ struct FileGrid: View {
                 geometry.size
             } action: { size in
                 viewport = size
+            }
+            .onChange(of: layout) {
+                tracking.frames = [:]
             }
             .background(MouseButtons(actions: [MouseButtons.secondary: selectForMenu]))
             .dragContainer(for: URL.self, itemID: \.self) { ids in ids }
@@ -75,34 +111,97 @@ struct FileGrid: View {
         }
     }
 
-    private func cell(for item: FileItem) -> some View {
-        FileGridCell(item: item, isSelected: model.selection.contains(item.id), isDropTarget: dropTarget == item.id)
-            .onGeometryChange(for: CGRect.self) { geometry in
-                geometry.frame(in: .named(space))
-            } action: { frame in
-                tracking.frames[item.id] = frame
+    private func scaffold(@ViewBuilder _ content: () -> some View) -> some View {
+        content()
+            .padding(padding)
+            // a minimum taken from the measured viewport only ever grows, so it is set on the scrolling axis alone
+            .frame(
+                minWidth: layout == .list ? viewport.width : nil,
+                maxWidth: layout == .list ? nil : .infinity,
+                minHeight: layout == .list ? nil : viewport.height,
+                maxHeight: layout == .list ? .infinity : nil,
+                alignment: .topLeading
+            )
+            .background { surface }
+            .overlay(alignment: .topLeading) { selectionBand }
+            .coordinateSpace(.named(space))
+            .onGeometryChange(for: CGPoint.self) { geometry in
+                geometry.frame(in: .named(viewportSpace)).origin
+            } action: { origin in
+                tracking.contentOrigin = origin
             }
-            .frame(maxWidth: .infinity)
-            .id(item.id)
-            .onTapGesture(count: 2) {
-                Task { await model.open(item) }
-            }
-            .simultaneousGesture(TapGesture().onEnded { select(item) })
-            .draggable(containerItemID: item.id)
-            .dropDestination(for: URL.self) { urls, _ in
-                Task { await model.drop(urls, into: item.opensAsFolder ? item.url : model.current) }
-                return true
-            } isTargeted: { targeted in
-                if targeted {
-                    dropTarget = item.opensAsFolder ? item.id : nil
-                } else if dropTarget == item.id {
-                    dropTarget = nil
-                }
-            }
-            .contextMenu { FileContextMenu(items: targets(for: item), model: model) }
     }
 
-    // empty space clears the selection on click and draws a selection band on drag
+    @ViewBuilder
+    private func section(_ group: FileGroup) -> some View {
+        let collapsed = model.collapsedGroups.contains(group.id)
+
+        if model.view.group != .none {
+            GroupHeader(group: group, isCollapsed: collapsed) {
+                model.toggleGroup(group.id)
+            }
+        }
+
+        if !collapsed {
+            LazyVGrid(columns: gridColumns, spacing: layout == .content ? 0 : spacing) {
+                ForEach(group.items) { item in
+                    cell(for: item)
+                }
+            }
+        }
+    }
+
+    private func cell(for item: FileItem) -> some View {
+        let rowStyle = layout != .extraLargeIcons && layout != .largeIcons && layout != .mediumIcons
+
+        return FileGridCell(
+            item: item,
+            layout: layout,
+            iconSize: model.view.iconSize,
+            compact: compact,
+            leadingInset: checkBoxes && rowStyle ? checkboxInset : 0,
+            isSelected: model.selection.contains(item.id),
+            isDropTarget: dropTarget == item.id,
+            rename: model.renaming?.id == item.id ? RenameField(item: item, model: model) : nil
+        )
+        .onGeometryChange(for: CGRect.self) { geometry in
+            geometry.frame(in: .named(space))
+        } action: { frame in
+            tracking.frames[item.id] = frame
+        }
+        .frame(width: layout == .list ? cellWidth : nil, height: layout == .list ? rowHeight : nil)
+        .frame(maxWidth: layout == .list ? nil : .infinity)
+        .id(item.id)
+        .onTapGesture(count: 2) {
+            // a double-click inside the rename field selects a word instead
+            guard model.renaming?.id != item.id else { return }
+
+            Task { await model.open(item) }
+        }
+        .simultaneousGesture(TapGesture().onEnded { select(item) })
+        .draggable(containerItemID: item.id)
+        .dropDestination(for: URL.self) { urls, _ in
+            Task { await model.drop(urls, into: item.opensAsFolder ? item.url : model.current) }
+            return true
+        } isTargeted: { targeted in
+            if targeted {
+                dropTarget = item.opensAsFolder ? item.id : nil
+            } else if dropTarget == item.id {
+                dropTarget = nil
+            }
+        }
+        .contextMenu { FileContextMenu(items: targets(for: item), model: model) }
+        .overlay(alignment: rowStyle ? .leading : .topLeading) {
+            if checkBoxes {
+                ItemCheckbox(isOn: model.selection.contains(item.id)) {
+                    model.toggleChecked(item)
+                }
+                .padding(.leading, rowStyle ? 6 : max(2, (cellWidth - model.view.iconSize) / 2 - 4))
+                .padding(.top, rowStyle ? 0 : 2)
+            }
+        }
+    }
+
     private var surface: some View {
         Color.clear
             .contentShape(Rectangle())
@@ -118,15 +217,14 @@ struct FileGrid: View {
     private var selectionBand: some View {
         if let band, band.width > 1 || band.height > 1 {
             Rectangle()
-                .fill(Color.Mocha.blue.opacity(0.15))
-                .strokeBorder(Color.Mocha.blue.opacity(0.6))
+                .fill(Color.userAccent.opacity(0.15))
+                .strokeBorder(Color.userAccent.opacity(0.6))
                 .frame(width: band.width, height: band.height)
                 .offset(x: band.minX, y: band.minY)
                 .allowsHitTesting(false)
         }
     }
 
-    // command adds to the selection, as in finder
     private var bandGesture: some Gesture {
         DragGesture(minimumDistance: 0, coordinateSpace: .named(space))
             .onChanged { drag in
@@ -140,7 +238,7 @@ struct FileGrid: View {
 
                 bandBase = base
                 band = rect
-                model.selection = base.union(model.items.filter { tracking.frames[$0.id]?.intersects(rect) == true }.map(\.id))
+                model.selection = base.union(model.visibleItems.filter { tracking.frames[$0.id]?.intersects(rect) == true }.map(\.id))
             }
             .onEnded { _ in
                 band = nil
@@ -149,37 +247,46 @@ struct FileGrid: View {
     }
 
     private func offset(for key: KeyEquivalent) -> Int {
+        if layout == .list {
+            switch key {
+            case .leftArrow: return -rows
+            case .rightArrow: return rows
+            case .upArrow: return -1
+            default: return 1
+            }
+        }
+
         switch key {
-        case .leftArrow: -1
-        case .rightArrow: 1
-        case .upArrow: -columns
-        default: columns
+        case .leftArrow: return -1
+        case .rightArrow: return 1
+        case .upArrow: return -columns
+        default: return columns
         }
     }
 
     private func move(by offset: Int) {
-        guard !model.items.isEmpty else { return }
+        let items = model.visibleItems
 
-        let current = model.items.lastIndex { model.selection.contains($0.id) }
+        guard !items.isEmpty else { return }
+
+        let current = items.lastIndex { model.selection.contains($0.id) }
         let next = current.map { $0 + offset } ?? 0
 
-        guard model.items.indices.contains(next) else { return }
+        guard items.indices.contains(next) else { return }
 
-        model.selection = [model.items[next].id]
+        model.selection = [items[next].id]
     }
 
-    // right-clicking inside the selection acts on all of it, as finder does
     private func targets(for item: FileItem) -> [FileItem] {
         model.selection.contains(item.id) ? model.selectedItems : [item]
     }
 
-    // a right click selects what it lands on, as windows does, then lets the menu open;
-    // the point is in the visible area, so it is moved into the scrolled content first
+    // the point arrives in the visible area, so it is moved into the scrolled content first
     private func selectForMenu(at point: CGPoint) -> Bool {
         guard viewport.width > 0, CGRect(origin: .zero, size: viewport).contains(point) else { return false }
 
         let point = CGPoint(x: point.x - tracking.contentOrigin.x, y: point.y - tracking.contentOrigin.y)
-        let hit = model.items.first { tracking.frames[$0.id]?.contains(point) == true }
+        let hit = model.visibleItems.first { tracking.frames[$0.id]?.contains(point) == true }
 
         if let id = hit?.id {
             if !model.selection.contains(id) {
@@ -195,10 +302,11 @@ struct FileGrid: View {
 
     private func select(_ item: FileItem) {
         let flags = NSEvent.modifierFlags
+        let items = model.visibleItems
 
-        if flags.contains(.shift), let anchor, let from = model.items.firstIndex(where: { $0.id == anchor }),
-           let to = model.items.firstIndex(of: item) {
-            model.selection = Set(model.items[min(from, to)...max(from, to)].map(\.id))
+        if flags.contains(.shift), let anchor, let from = items.firstIndex(where: { $0.id == anchor }),
+           let to = items.firstIndex(of: item) {
+            model.selection = Set(items[min(from, to)...max(from, to)].map(\.id))
             return
         }
 
@@ -212,43 +320,9 @@ struct FileGrid: View {
     }
 }
 
-private struct FileGridCell: View {
-    let item: FileItem
-    let isSelected: Bool
-    let isDropTarget: Bool
-
-    var body: some View {
-        VStack(spacing: 6) {
-            FileIcon(item: item, size: 64)
-                .padding(4)
-                .background(iconBackground, in: .rect(cornerRadius: 8))
-
-            Text(item.name)
-                .font(SettingsStore.shared.settings.font(scale: 12 / 13))
-                .lineLimit(2)
-                .truncationMode(.middle)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 4)
-                .padding(.vertical, 1)
-                .foregroundStyle(isSelected ? Color.Mocha.base : Color.primary)
-                .background(isSelected ? Color.Mocha.blue : .clear, in: .rect(cornerRadius: 4))
-        }
-        .contentShape(Rectangle())
-    }
-
-    private var iconBackground: Color {
-        if isDropTarget {
-            return Color.Mocha.blue.opacity(0.3)
-        }
-
-        return isSelected ? Color.primary.opacity(0.1) : .clear
-    }
-}
-
 // written as cells lay out and the grid scrolls, and read only on clicks, so it is kept out of observation
 // shortcut: frames of cells scrolled away keep their last position, upgrade if the band ever scrolls the grid
 private final class GridTracking {
     var frames: [FileItem.ID: CGRect] = [:]
     var contentOrigin = CGPoint.zero
 }
-

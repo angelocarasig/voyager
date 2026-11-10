@@ -15,7 +15,7 @@ struct FileActionTests {
     private static func item(_ name: String, folder: Bool = false, package: Bool = false) -> FileItem {
         FileItem(
             url: URL(filePath: "/a/\(name)", directoryHint: folder ? .isDirectory : .notDirectory), name: name,
-            size: nil, modified: nil, kind: "", type: nil, isDirectory: folder || package, isPackage: package
+            size: nil, modified: nil, created: nil, kind: "", type: nil, isDirectory: folder || package, isPackage: package, isHidden: false
         )
     }
 

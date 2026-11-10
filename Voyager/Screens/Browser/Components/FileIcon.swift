@@ -22,7 +22,7 @@ struct FileIcon: View {
                 Image(systemName: "folder.fill")
                     .resizable()
                     .scaledToFit()
-                    .foregroundStyle(Color.Mocha.blue)
+                    .foregroundStyle(Color.userAccent)
                     .padding(size * 0.06)
             } else {
                 Image(nsImage: thumbnail ?? Self.icon(for: item))

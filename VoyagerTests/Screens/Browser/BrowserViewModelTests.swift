@@ -19,8 +19,8 @@ struct BrowserViewModelTests {
 
     private nonisolated static func entry(_ name: String, in folder: URL, folder isFolder: Bool = false) -> FileItem {
         FileItem(
-            url: folder.appending(path: name), name: name, size: isFolder ? nil : 1, modified: nil,
-            kind: "", type: nil, isDirectory: isFolder, isPackage: false
+            url: folder.appending(path: name), name: name, size: isFolder ? nil : 1, modified: nil, created: nil,
+            kind: "", type: nil, isDirectory: isFolder, isPackage: false, isHidden: false
         )
     }
 
@@ -31,7 +31,7 @@ struct BrowserViewModelTests {
     @Test("GIVEN a selection WHEN navigating THEN the new folder's items load and the selection clears")
     func navigate() async {
         // arrange
-        let vm = BrowserViewModel(start: Self.folderA) { Self.listing($0) }
+        let vm = BrowserViewModel(start: Self.folderA) { folder, _ in Self.listing(folder) }
         await vm.reload()
         vm.selection = [Self.folderA.appending(path: "a1")]
 
@@ -48,7 +48,7 @@ struct BrowserViewModelTests {
     @Test("GIVEN two folders visited WHEN going back, forward and up THEN each lands on the expected folder")
     func history() async {
         // arrange
-        let vm = BrowserViewModel(start: Self.folderA) { Self.listing($0) }
+        let vm = BrowserViewModel(start: Self.folderA) { folder, _ in Self.listing(folder) }
         await vm.navigate(to: Self.folderB)
 
         // act, assert
@@ -68,7 +68,7 @@ struct BrowserViewModelTests {
     @Test("GIVEN a folder that cannot be read WHEN navigating THEN the list empties and a failure shows")
     func failure() async {
         // arrange
-        let vm = BrowserViewModel(start: Self.folderA) { folder in
+        let vm = BrowserViewModel(start: Self.folderA) { folder, _ in
             if folder == Self.folderB {
                 throw CocoaError(.fileReadNoPermission)
             }
@@ -93,7 +93,7 @@ struct BrowserViewModelTests {
         let slow = URL(filePath: "/slow", directoryHint: .isDirectory)
         let fast = URL(filePath: "/fast", directoryHint: .isDirectory)
         let (gate, open) = AsyncStream<Void>.makeStream()
-        let vm = BrowserViewModel(start: Self.root) { folder in
+        let vm = BrowserViewModel(start: Self.root) { folder, _ in
             if folder == slow {
                 for await _ in gate { break }
             }
@@ -118,7 +118,7 @@ struct BrowserViewModelTests {
     @Test("GIVEN the root folder WHEN going up THEN nothing changes")
     func upAtRoot() async {
         // arrange
-        let vm = BrowserViewModel(start: Self.root) { Self.listing($0) }
+        let vm = BrowserViewModel(start: Self.root) { folder, _ in Self.listing(folder) }
 
         // act
         await vm.goUp()
@@ -131,7 +131,7 @@ struct BrowserViewModelTests {
     @Test("GIVEN a folder and a file WHEN sorted by name descending THEN the folder still comes first")
     func sorting() async {
         // arrange
-        let vm = BrowserViewModel(start: Self.folderA) { folder in
+        let vm = BrowserViewModel(start: Self.folderA) { folder, _ in
             [
                 Self.entry("apple.txt", in: folder),
                 Self.entry("zebra.txt", in: folder),

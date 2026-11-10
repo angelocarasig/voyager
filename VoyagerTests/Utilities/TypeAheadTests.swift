@@ -14,8 +14,8 @@ struct TypeAheadTests {
 
     private static let items = ["Desktop", "Documents", "Downloads", "Écoles"].map { name in
         FileItem(
-            url: URL(filePath: "/Users/someone/\(name)"), name: name, size: nil, modified: nil,
-            kind: "", type: nil, isDirectory: true, isPackage: false
+            url: URL(filePath: "/Users/someone/\(name)"), name: name, size: nil, modified: nil, created: nil,
+            kind: "", type: nil, isDirectory: true, isPackage: false, isHidden: false
         )
     }
 

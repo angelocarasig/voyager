@@ -89,7 +89,6 @@ enum FileAction: Hashable, CaseIterable {
         }
     }
 
-    // finder's shortcuts, so they match what the menu bar shows
     var shortcut: KeyboardShortcut? {
         switch self {
         case .open: KeyboardShortcut(.downArrow)
@@ -103,7 +102,8 @@ enum FileAction: Hashable, CaseIterable {
         case .copyPath: KeyboardShortcut("c", modifiers: [.command, .option])
         case .newFolder: KeyboardShortcut("n", modifiers: [.command, .shift])
         case .reload: KeyboardShortcut("r")
-        case .openWith, .openInTerminal, .rename, .compress, .showInFinder: nil
+        case .rename: KeyboardShortcut(KeyEquivalent(Character(UnicodeScalar(NSF2FunctionKey)!)), modifiers: [])
+        case .openWith, .openInTerminal, .compress, .showInFinder: nil
         }
     }
 }

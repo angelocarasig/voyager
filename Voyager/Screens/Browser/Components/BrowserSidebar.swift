@@ -14,13 +14,19 @@ struct BrowserSidebar: View {
     let navigate: (URL) -> Void
     let drop: ([URL], URL) -> Void
 
+    private let shares = NetworkShares.shared
+
     private var selected: Binding<String?> {
         Binding {
             current.folderKey
         } set: { key in
             guard let key, key != current.folderKey else { return }
 
-            navigate(URL(filePath: key, directoryHint: .isDirectory))
+            if let share = shares.share(withID: key) {
+                open(share)
+            } else {
+                navigate(URL(filePath: key, directoryHint: .isDirectory))
+            }
         }
     }
 
@@ -57,19 +63,61 @@ struct BrowserSidebar: View {
                             }
                     }
                 }
+
+                if section.title == "Places", !shares.shares.isEmpty {
+                    Section("NAS") {
+                        ForEach(shares.shares, id: \.self, content: shareRow)
+                    }
+                }
             }
         }
         .listStyle(.sidebar)
     }
 
+    private func shareRow(_ share: URL) -> some View {
+        let point = shares.mountPoint(of: share)
+
+        return HStack {
+            Label(share.lastPathComponent, systemImage: point == nil ? "externaldrive.badge.xmark" : "externaldrive.connected.to.line.below")
+                .lineLimit(1)
+
+            Spacer()
+
+            if shares.connecting.contains(share) {
+                ProgressView()
+                    .controlSize(.mini)
+            }
+        }
+        .opacity(point == nil ? 0.5 : 1)
+        .tag(point?.folderKey ?? share.absoluteString)
+        .dropDestination(for: URL.self) { urls, _ in
+            guard let point else { return false }
+
+            drop(urls, point)
+            return true
+        }
+        .contextMenu {
+            if let point {
+                Button("Eject") { Task { await shares.eject(share) } }
+                Button("Reconnect") { Task { await shares.reconnect(share) } }
+                Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([point]) }
+            } else {
+                Button("Connect") { open(share) }
+            }
+        }
+    }
+
+    private func open(_ share: URL) {
+        Task {
+            if let point = await shares.open(share) {
+                navigate(point)
+            }
+        }
+    }
+
     private func symbol(for url: URL, in section: SidebarSection) -> String {
-        switch section.title {
-        case "NAS":
-            return "externaldrive.connected.to.line.below"
-        case "Volumes":
+        if section.title == "Volumes" {
             return "externaldrive"
-        default:
-            break
         }
 
         switch url.lastPathComponent {

@@ -13,20 +13,24 @@ enum DirectoryLoader {
         .nameKey,
         .fileSizeKey,
         .contentModificationDateKey,
+        .creationDateKey,
+        .isHiddenKey,
         .localizedTypeDescriptionKey,
         .contentTypeKey,
         .isDirectoryKey,
         .isPackageKey,
         .isSymbolicLinkKey,
+        .addedToDirectoryDateKey,
+        .tagNamesKey,
     ]
 
     // runs off the main actor - smb listings take seconds and must never stall the ui
     @concurrent
-    static func load(_ folder: URL) async throws -> [FileItem] {
+    static func load(_ folder: URL, showingHidden: Bool) async throws -> [FileItem] {
         let urls = try FileManager.default.contentsOfDirectory(
             at: folder,
             includingPropertiesForKeys: Array(keys),
-            options: [.skipsHiddenFiles]
+            options: showingHidden ? [] : [.skipsHiddenFiles]
         )
         try Task.checkCancellation()
 
@@ -36,8 +40,8 @@ enum DirectoryLoader {
     static func item(at url: URL) -> FileItem {
         guard let own = try? url.resourceValues(forKeys: keys) else {
             return FileItem(
-                url: url, name: url.lastPathComponent, size: nil, modified: nil, kind: "",
-                type: nil, isDirectory: false, isPackage: false
+                url: url, name: url.lastPathComponent, size: nil, modified: nil, created: nil, kind: "",
+                type: nil, isDirectory: false, isPackage: false, isHidden: url.lastPathComponent.hasPrefix(".")
             )
         }
 
@@ -51,10 +55,14 @@ enum DirectoryLoader {
             name: own.name ?? url.lastPathComponent,
             size: isDirectory ? nil : values.fileSize.map(Int64.init),
             modified: values.contentModificationDate,
+            created: values.creationDate,
             kind: values.localizedTypeDescription ?? "",
             type: values.contentType,
             isDirectory: isDirectory,
-            isPackage: values.isPackage ?? false
+            isPackage: values.isPackage ?? false,
+            isHidden: own.isHidden == true || url.lastPathComponent.hasPrefix("."),
+            dateAdded: values.addedToDirectoryDate,
+            tags: values.tagNames ?? []
         )
     }
 }

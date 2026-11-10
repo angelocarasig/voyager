@@ -7,7 +7,6 @@
 
 import SwiftUI
 
-// asked once at launch; the same switch stays in settings under system
 struct FullDiskAccessSheet: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -15,7 +14,7 @@ struct FullDiskAccessSheet: View {
         VStack(spacing: 16) {
             Image(systemName: "lock.open.display")
                 .font(.system(size: 40))
-                .foregroundStyle(Color.Mocha.blue)
+                .foregroundStyle(Color.userAccent)
 
             Text("Allow Full Disk Access")
                 .font(.title2)
